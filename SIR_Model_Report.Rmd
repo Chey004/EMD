@@ -1,0 +1,189 @@
+---
+title: "SIR Epidemiological Model Analysis"
+author: "Epidemiological Modeling Project"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    highlight: tango
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# Load required packages
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("reshape2")) install.packages("reshape2")
+if (!require("gridExtra")) install.packages("gridExtra")
+
+library(ggplot2)
+library(reshape2)
+library(gridExtra)
+
+# Source the SIR model functions
+source("sir_model.R")
+```
+
+## Introduction to Compartmental Models in Epidemiology
+
+Epidemiological models are mathematical frameworks used to study the spread of infectious diseases within populations. One of the most fundamental approaches is the compartmental model, which divides the population into distinct groups (compartments) based on their disease status.
+
+The SIR model is a classic compartmental model that categorizes individuals as:
+
+- **Susceptible (S)**: Individuals who can become infected
+- **Infectious (I)**: Individuals who are currently infected and can transmit the disease
+- **Recovered (R)**: Individuals who have recovered from the infection and are assumed to be immune
+
+## Mathematical Formulation
+
+The SIR model is described by a system of ordinary differential equations:
+
+$$\frac{dS}{dt} = -\beta \frac{SI}{N}$$
+$$\frac{dI}{dt} = \beta \frac{SI}{N} - \gamma I$$
+$$\frac{dR}{dt} = \gamma I$$
+
+Where:
+
+- $\beta$ is the transmission rate (average number of contacts per person per time multiplied by the probability of disease transmission)
+- $\gamma$ is the recovery rate (1/infectious period)
+- $N$ is the total population size ($N = S + I + R$)
+
+In discrete time, which we use for our simulation, these equations become:
+
+$$S_{t+1} = S_t - \beta \frac{S_t I_t}{N}$$
+$$I_{t+1} = I_t + \beta \frac{S_t I_t}{N} - \gamma I_t$$
+$$R_{t+1} = R_t + \gamma I_t$$
+
+## Implementation in R
+
+We've implemented the SIR model as a set of functions in R. The core function `sir_model()` simulates the disease spread over time based on specified parameters.
+
+### Basic SIR Model Simulation
+
+```{r basic_sir}
+# Run the basic SIR model with default parameters
+sir_results <- sir_model()
+head(sir_results)
+
+# Plot the results
+sir_plot <- plot_sir(sir_results)
+print(sir_plot)
+```
+
+### Understanding Model Parameters
+
+The key parameters in our SIR model are:
+
+1. **Transmission rate ($\beta$)**: Controls how quickly the disease spreads
+2. **Recovery rate ($\gamma$)**: Determines how quickly infected individuals recover
+3. **Basic reproduction number ($R_0 = \beta/\gamma$)**: The average number of secondary infections caused by a single infectious individual in a completely susceptible population
+
+### Exploring Different Parameter Values
+
+```{r parameter_exploration}
+# Higher transmission rate
+high_beta <- sir_model(beta = 0.5, gamma = 0.1)
+plot_high_beta <- plot_sir(high_beta) + ggtitle("High Transmission Rate (β = 0.5)")
+
+# Higher recovery rate
+high_gamma <- sir_model(beta = 0.3, gamma = 0.2)
+plot_high_gamma <- plot_sir(high_gamma) + ggtitle("High Recovery Rate (γ = 0.2)")
+
+# Arrange plots
+grid.arrange(plot_high_beta, plot_high_gamma, ncol = 2)
+```
+
+## Modeling Interventions
+
+One of the key applications of epidemiological models is to assess the impact of public health interventions. Our `simulate_intervention()` function allows us to model scenarios where the transmission rate changes at a specific point in time, simulating interventions like social distancing, mask mandates, or vaccination campaigns.
+
+```{r interventions}
+# Simulate an intervention that reduces transmission rate at day 40
+intervention_results <- simulate_intervention(
+  beta_before = 0.3,
+  beta_after = 0.15,
+  intervention_time = 40
+)
+
+# Plot the results
+intervention_plot <- plot_sir(intervention_results) + 
+  ggtitle("SIR Model with Intervention at Day 40") +
+  geom_vline(xintercept = 40, linetype = "dashed", color = "black") +
+  annotate("text", x = 45, y = 750, label = "Intervention starts", hjust = 0)
+
+print(intervention_plot)
+```
+
+### Comparing Scenarios With and Without Interventions
+
+```{r comparison}
+# Run model without intervention
+no_intervention <- sir_model(beta = 0.3, gamma = 0.1)
+
+# Compare the peak infectious cases
+max_infectious_no_intervention <- max(no_intervention$infectious)
+max_infectious_with_intervention <- max(intervention_results$infectious)
+
+# Create comparison plot
+grid.arrange(
+  plot_sir(no_intervention) + ggtitle("Without Intervention"),
+  intervention_plot,
+  ncol = 2
+)
+
+# Print comparison statistics
+cat("Peak infectious cases without intervention:", round(max_infectious_no_intervention), "\n")
+cat("Peak infectious cases with intervention:", round(max_infectious_with_intervention), "\n")
+cat("Reduction in peak cases:", 
+    round((max_infectious_no_intervention - max_infectious_with_intervention) / 
+          max_infectious_no_intervention * 100), "%\n")
+```
+
+## Customizing the Model
+
+The SIR model can be customized to fit specific scenarios by adjusting parameters. Here's an example with a larger population and different initial conditions:
+
+```{r custom_scenario}
+# Custom scenario with larger population
+large_pop_scenario <- sir_model(
+  N = 10000,      # Population size
+  I0 = 10,        # Initial infectious
+  R0 = 0,         # Initial recovered
+  beta = 0.3,     # Transmission rate
+  gamma = 0.1,    # Recovery rate
+  timesteps = 200 # Simulation duration
+)
+
+# Plot results
+plot_sir(large_pop_scenario) + 
+  ggtitle("SIR Model with Population of 10,000")
+```
+
+## Conclusion
+
+The SIR model provides a fundamental framework for understanding epidemic dynamics. While simple, it captures the essential features of many disease outbreaks and can be extended to include additional compartments or more complex dynamics.
+
+Key insights from this analysis:
+
+1. The basic reproduction number ($R_0 = \beta/\gamma$) largely determines the final size and speed of an epidemic
+2. Timely interventions that reduce transmission can significantly decrease the peak number of cases
+3. The model can be customized to explore various scenarios and intervention strategies
+
+## Next Steps
+
+Possible extensions to this basic model include:
+
+1. Adding an Exposed (E) compartment to create an SEIR model for diseases with incubation periods
+2. Incorporating age structure or spatial dynamics
+3. Adding stochasticity to model random variations in small populations
+4. Calibrating the model to real-world data
+
+## References
+
+1. Kermack, W. O., & McKendrick, A. G. (1927). A contribution to the mathematical theory of epidemics. Proceedings of the Royal Society of London. Series A, 115(772), 700-721.
+
+2. Hethcote, H. W. (2000). The mathematics of infectious diseases. SIAM Review, 42(4), 599-653.
+
+3. Bjørnstad, O. N. (2018). Epidemics: Models and Data using R. Springer.
